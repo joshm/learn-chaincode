@@ -17,14 +17,104 @@ limitations under the License.
 package main
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
+	pb "github.com/hyperledger/fabric/protos/peer"
 )
 
 // SimpleChaincode example simple Chaincode implementation
 type SimpleChaincode struct {
+}
+
+// Init resets all the things
+func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
+	_, args := stub.GetFunctionAndParameters()
+	if len(args) != 1 {
+		return shim.Error("Incorrect number of arguments. Expecting 1")
+	}
+
+  err := stub.PutState("hello_world", []byte(args[0]))
+  if err != nil {
+    return shim.Error(err.Error())
+  }
+
+	return shim.Success(nil)
+}
+
+func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
+	fmt.Println("ex02 Invoke")
+	function, args := stub.GetFunctionAndParameters()
+  if function == "init" {													//initialize the chaincode state, used as reset
+		return t.Init(stub)
+	} else if function == "write" {
+    return t.write(stub, args)
+  }
+
+	fmt.Println("invoke did not find func: " + function)					//error
+
+	return shim.Error("Received unknown function invocation: " + function)
+}
+
+func (t *SimpleChaincode) write(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+  fmt.Println("ex02 write")
+  var key, value string
+
+  if len(args) != 2 {
+    return shim.Error("Incorrect number of args. Expecting 2")
+  }
+
+  key = args[0]
+  value = args[1]
+  err := stub.PutState(key, []byte(value))
+  if err != nil {
+    return shim.Error(err.Error())
+  }
+
+  return shim.Success(nil)
+
+
+}
+
+// Query is our entry point for queries
+func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface) pb.Response {
+	function, args := stub.GetFunctionAndParameters()
+	if len(args) != 1 {
+		return shim.Error("Incorrect number of arguments. Expecting 1")
+	}
+
+	fmt.Println("query is running " + function)
+
+	// Handle different functions
+	if function == "read" {											//read a variable
+    return t.read(stub, args)
+	}
+	fmt.Println("query did not find func: " + function)						//error
+
+  return shim.Error("Received unkown function query: " + function)
+}
+
+func (t *SimpleChaincode) read(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	var key, jsonResp string
+	var err error
+
+  if len(args) != 1 {
+		return shim.Error("Incorrect number of arguments.")
+	}
+
+	key = args[0]
+  Avalbytes, err := stub.GetState(key)
+  if err != nil {
+    jsonResp = "{\"Error\":\"Falied to get state for " + key + "\"}"
+    return shim.Error(jsonResp)
+  }
+
+  if Avalbytes == nil {
+    jsonResp = "{\"Error\":\"Nil amount for " + key + "\"}"
+    return shim.Error(jsonResp)
+  }
+
+  return shim.Success(Avalbytes)
 }
 
 // ============================================================================================================================
@@ -37,38 +127,4 @@ func main() {
 	}
 }
 
-// Init resets all the things
-func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
-	if len(args) != 1 {
-		return nil, errors.New("Incorrect number of arguments. Expecting 1")
-	}
 
-	return nil, nil
-}
-
-// Invoke is our entry point to invoke a chaincode function
-func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
-	fmt.Println("invoke is running " + function)
-
-	// Handle different functions
-	if function == "init" {													//initialize the chaincode state, used as reset
-		return t.Init(stub, "init", args)
-	}
-	fmt.Println("invoke did not find func: " + function)					//error
-
-	return nil, errors.New("Received unknown function invocation: " + function)
-}
-
-// Query is our entry point for queries
-func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
-	fmt.Println("query is running " + function)
-
-	// Handle different functions
-	if function == "dummy_query" {											//read a variable
-		fmt.Println("hi there " + function)						//error
-		return nil, nil;
-	}
-	fmt.Println("query did not find func: " + function)						//error
-
-	return nil, errors.New("Received unknown function query: " + function)
-}
